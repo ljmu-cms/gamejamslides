@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=1024" />
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<title>LJMU Game Jam</title>
+	
+	<meta name="description" content="LJMU Game Jam CEP Network Lunch presentation" />
+	<meta name="author" content="David Llewellyn-Jones" />
+
+	<link href="http://fonts.googleapis.com/css?family=Open+Sans:regular,semibold,italic,italicsemibold|PT+Sans:400,700,400italic,700italic|PT+Serif:400,700,400italic,700italic" rel="stylesheet" />
+
+	<link href="css/presentation.css" rel="stylesheet" />
+
+	<script type="text/javascript" src="js/shaderback.js"></script>
+	<script id="shader" type="text/fragment">
+#extension GL_OES_standard_derivatives : enable 
+
+precision highp float;
+
+varying vec2 fragCoord;
+uniform vec3 iResolution;
+uniform float iGlobalTime;
+const vec2 iMouse = vec2(0.0, 0.0);
+
+void mainImage (out vec4 fragColor, in vec2 fragCoord);
+
+void main () {
+	 mainImage(gl_FragColor, fragCoord);
+	 gl_FragColor.a = 1.0;
+}
+
+// Created by inigo quilez - iq/2013
+// License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+
+// See here for a tutorial on how to make this: http://www.iquilezles.org/www/articles/warp/warp.htm
+
+const mat2 m = mat2( 0.80,  0.60, -0.60,  0.80 );
+
+float noise( in vec2 x )
+{
+	return sin(1.5*x.x)*sin(1.5*x.y);
+}
+
+float fbm4( vec2 p )
+{
+    float f = 0.0;
+    f += 0.5000*noise( p ); p = m*p*2.02;
+    f += 0.2500*noise( p ); p = m*p*2.03;
+    f += 0.1250*noise( p ); p = m*p*2.01;
+    f += 0.0625*noise( p );
+    return f/0.9375;
+}
+
+float fbm6( vec2 p )
+{
+    float f = 0.0;
+    f += 0.500000*(0.5+0.5*noise( p )); p = m*p*2.02;
+    f += 0.250000*(0.5+0.5*noise( p )); p = m*p*2.03;
+    f += 0.125000*(0.5+0.5*noise( p )); p = m*p*2.01;
+    f += 0.062500*(0.5+0.5*noise( p )); p = m*p*2.04;
+    f += 0.031250*(0.5+0.5*noise( p )); p = m*p*2.01;
+    f += 0.015625*(0.5+0.5*noise( p ));
+    return f/0.96875;
+}
+
+float func( vec2 q, out vec4 ron )
+{
+    float ql = length( q );
+    q.x += 0.05*sin(0.27*iGlobalTime+ql*4.1);
+    q.y += 0.05*sin(0.23*iGlobalTime+ql*4.3);
+    q *= 0.5;
+
+	vec2 o = vec2(0.0);
+    o.x = 0.5 + 0.5*fbm4( vec2(2.0*q          )  );
+    o.y = 0.5 + 0.5*fbm4( vec2(2.0*q+vec2(5.2))  );
+
+	float ol = length( o );
+    o.x += 0.02*sin(0.12*iGlobalTime+ol)/ol;
+    o.y += 0.02*sin(0.14*iGlobalTime+ol)/ol;
+
+    vec2 n;
+    n.x = fbm6( vec2(4.0*o+vec2(9.2))  );
+    n.y = fbm6( vec2(4.0*o+vec2(5.7))  );
+
+    vec2 p = 4.0*q + 4.0*n;
+
+    float f = 0.5 + 0.5*fbm4( p );
+
+    f = mix( f, f*f*f*3.5, f*abs(n.x) );
+
+    float g = 0.5 + 0.5*sin(4.0*p.x)*sin(4.0*p.y);
+    f *= 1.0-0.5*pow( g, 8.0 );
+
+	ron = vec4( o, n );
+	
+    return f;
+}
+
+vec3 doMagic(vec2 p)
+{
+	vec2 q = p*0.6;
+
+    vec4 on = vec4(0.0);
+    float f = func(q, on);
+
+	vec3 col = vec3(0.0);
+    col = mix( vec3(0.1,0.1,0.4), vec3(0.0,0.05,0.05), f );
+    col = mix( col, vec3(0.3,0.3,0.9), dot(on.zw,on.zw) );
+    col = mix( col, vec3(0.3,0.3,0.3), 0.5*on.y*on.y );
+    col = mix( col, vec3(0.2,0.2,0.4), 0.5*smoothstep(1.2,1.3,abs(on.z)+abs(on.w)) );
+    col = clamp( col*f*2.0, 0.0, 1.0 );
+    
+	//vec3 nor = normalize( vec3( dFdx(f)*iResolution.x, 6.0, dFdy(f)*iResolution.y ) );
+	vec3 nor = normalize( vec3( f*iResolution.x, 6.0, f*iResolution.y ) );
+
+    vec3 lig = normalize( vec3( 0.9, -0.2, -0.4 ) );
+    float dif = clamp( 0.3+0.7*dot( nor, lig ), 0.0, 1.0 );
+    vec3 bdrf;
+    bdrf  = vec3(0.90,0.90,0.45)*(nor.y*0.5+0.5);
+    bdrf += vec3(0.50,0.50,0.05)*dif;
+    col *= 1.2*bdrf;
+	col = 1.0-col / 2.01;
+	return 1.0*col*col;
+}
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    vec2 q = fragCoord.xy / iResolution.xy;
+    vec2 p = -1.0 + 2.0 * q;
+    p.x *= iResolution.x/iResolution.y;
+
+    fragColor = vec4( doMagic( p ), 1.0 );
+}
+	</script>
+		
+</head>
+
+<body class="impress-not-supported">
+
+	<script type="text/javascript">
+	shaderback.setDebug(true);
+	window.onload = shaderback.loaddiv("shader");
+	</script>
+
+<div class="fallback-message">
+    <p>Your browser <b>doesn't support the features required</b> for this presentation, so you are presented with a simplified version.</p>
+    <p>For the best experience please use the latest <b>Chrome</b>, <b>Safari</b> or <b>Firefox</b> browser.</p>
+</div>
+
+<div id="background">
+	<img id="logo-top" style="width: 30%;" src="images/LogoEdge.png" />
+	<h1>LJMU Game Jam</h1>
+	<div id="impress" data-transition-duration="1000">
+
+			<div id="title" class="step slide" data-x="2500" data-y="0" data-z="0" data-rotate-y="70" >
+				<div id="title-background">
+					<br style="margin-top: 40px;" />
+					<div class="left-line">
+						<h2>A Stanley Parable</h2>
+						<br />
+						<h3>David Llewellyn-Jones</h3>
+						<h3>Curriculum Enhancement Project Network Lunch</h3>
+						<h3>15 April 2015</h3>						<br />
+						<h3><a href="https://github.com/ljmu-cms/gamejamslides">https://github.com/ljmu-cms/gamejamslides</a></h3>
+					</div>
+				</div>
+			</div>
+
+			<div id="general" class="step slide" data-x="2349" data-y="200" data-z="855" data-rotate-y="50" >
+				<img class="hackculture" style="float: right; margin-top: 20px; margin-left: 40px; height: 500px;" src="images/HackCulture.png" />
+				<h2>What is it?</h2>
+				<p />Game development: Coding, design, graphics, audio, music, etc.
+				<p />Continuous 48 hours, 24-26 June at OpenLabs
+				<p />Awards at the end, but not competitive
+				<p />Modelled on Global Game Jam <a href="http://globalgamejam.org
+">http://globalgamejam.org</a>
+			</div>
+
+			<div id="javascript" class="step slide" data-x="1915" data-y="400" data-z="1607" data-rotate-y="30" >
+				<h2>Arranged so far</h2>
+				<p />Venue, technical support
+				<p />PhD students to cover event
+				<p />Industry representatives, Liverpool SU support
+				<p />Website, social media, leaflets, advertising
+				<img class="leaflets" style="width: 70%; margin-left: 140px; margin-top: 50px;" src="images/Leaflets.png" />
+			</div>
+
+			<div id="glsl" class="step slide" data-x="1250" data-y="580" data-z="2165" data-rotate-y="10" >
+				<iframe src="http://ljmugamejam.com/new" height="600px;" width="111%" frameborder="0" scrolling="no" style="overflow: hidden;
+        -ms-zoom: 0.9;
+        -moz-transform: scale(0.9);
+        -moz-transform-origin: 0 0;
+        -o-transform: scale(0.9);
+        -o-transform-origin: 0 0;
+        -webkit-transform: scale(0.9);
+        -webkit-transform-origin: 0 0;
+				zoom: 0.9;">
+				You need a Frames Capable browser to view this content.
+				</iframe>
+				<p style="font-size: 80%; line-spacing: 0px; margin-top: -40px;"/><a href="http://ljmugamejam.com/new">http://ljmugamejam.com/new</a> created by L5 students Elliott Wheat and Jamie Hulse
+				</div>
+
+			<div id="fragment" class="step slide" data-x="434" data-y="800" data-z="2462" data-rotate-y="-10" >
+				<h2>Student interest</h2>
+				<p />Some students very enthusiastic
+				<p />Enough students signed up to run
+				<p />Mostly students from computing
+				<p />Some students expressed lack of confidence
+				<p />Timing could be improved
+			</div>
+
+			<div id="not-covered" class="step slide" data-x="-434" data-y="1000" data-z="2462" data-rotate-y="-30" >
+				<h2>Application outside computing</h2>
+				<p />Assessing the benefits
+				<ul>
+					<li>Will student's confidence increase?</li>
+					<li>Will it be a learning experience</li>
+				</ul>
+				<p />Similar events outside computing
+				<ul>
+					<li>Hack events related to Makerspace CEP</li>
+					<li>Competitive events</li>
+					<li>'Hackathons' becoming widespread</li>
+				</ul>
+			</div>
+
+			<div id="not-covered2" class="step slide" data-x="-1250" data-y="1200" data-z="2465" data-rotate-y="-50" >
+			<p />
+				<video src="video/StanleyParable.mp4" width="100%" controls>
+				This is fallback content to display for user agents that do not support the video tag.
+				</video>
+			</div>
+
+			<div id="overview" class="step" data-x="500" data-y="900" data-z="4000" data-scale="2">
+				<p style="height: 120px;" />
+				<p />Website: <a href="http://www.ljmugamejam.com">http://www.ljmugamejam.com</a>
+				<p style="height: 460px;" />
+				<p />Slides: <a href="https://github.com/ljmu-cms/gamejamslides">https://github.com/ljmu-cms/gamejamslides</a>
+				<br />Shader adapted from <a href="https://www.shadertoy.com/view/lsl3RH">Inigo Quilez</a>
+				<p style="height: 60px;" />
+			</div>
+		
+	</div>
+</div>
+
+<div class="hint2">
+	<p>Use a spacebar or arrow keys to navigate</p>
+</div>
+<script>
+if ("ontouchstart" in document.documentElement) { 
+    document.querySelector(".hint").innerHTML = "<p>Tap on the left or right to navigate</p>";
+}
+</script>
+
+<script src="js/impress.js"></script>
+<script>impress().init();</script>
+
+</body>
+</html>
+
