@@ -1,4 +1,4 @@
-# gamejamslides
+# CEP Game Jam Slides
 
 ## Slides
 
