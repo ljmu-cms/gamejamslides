@@ -4,14 +4,14 @@
 
 Slides for CEP Network Lunch presentation
 
-http://rawgit.com/ljmu-cms/gamejamslides/master/index.html
+View slides: http://rawgit.com/ljmu-cms/gamejamslides/master/index.html
 
 
 ## Time spent coding on the side per week
 
 Stack Overflow Developer Survey
 
-http://stackoverflow.com/research/developer-survey-2015#work-status
+Survey: http://stackoverflow.com/research/developer-survey-2015#work-status
 
 "The average fully employed developer spends more than 6 hours every week working on open source, side- or hobby projects."
 
